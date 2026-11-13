@@ -25,6 +25,10 @@ jobs:
         with:
           targets: aarch64-linux-android, armv7-linux-androideabi
 
+      - name: Install Android Platform 34
+        run: |
+          echo "y" | sdkmanager "platforms;android-34" "build-tools;34.0.0" || true
+
       - name: Install cargo-apk
         run: cargo install cargo-apk
 
