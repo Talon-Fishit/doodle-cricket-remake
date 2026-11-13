@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "rea": {
+      "command": "npx",
+      "args": ["rea-agents"]
+    },
+    "craft-anything": {
+      "command": "craft-anything-cli",
+      "args": ["mcp"]
+    }
+  }
+}

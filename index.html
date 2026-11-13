@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Doodle Cricket Remake – Craft Anything</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body {
+            background: linear-gradient(135deg, #0b5345 0%, #145a32 50%, #196f3d 100%);
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+        #game-container {
+            position: relative;
+            width: 800px;
+            max-width: 100vw;
+            height: 450px;
+            max-height: 80vh;
+            background: #27ae60;
+            border-radius: 16px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.4);
+            overflow: hidden;
+            border: 4px solid #f1c40f;
+        }
+        canvas {
+            display: block;
+            background: #2ecc71;
+            width: 100%;
+            height: 100%;
+        }
+        .ui-overlay {
+            position: absolute;
+            top: 15px;
+            left: 20px;
+            right: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+            font-weight: bold;
+            font-size: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.6);
+        }
+        .stat-box {
+            background: rgba(0,0,0,0.4);
+            padding: 8px 16px;
+            border-radius: 8px;
+            border: 2px solid rgba(255,255,255,0.2);
+        }
+        #start-screen, #game-over-screen {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 40, 20, 0.85);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            z-index: 10;
+        }
+        h1 { font-size: 48px; color: #f1c40f; margin-bottom: 10px; text-shadow: 3px 3px 6px rgba(0,0,0,0.5); }
+        p { font-size: 18px; margin-bottom: 20px; color: #ecf0f1; }
+        .btn {
+            background: #f1c40f;
+            color: #2c3e50;
+            border: none;
+            padding: 14px 36px;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+        .btn:hover { background: #f39c12; transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.4); }
+        .btn:active { transform: translateY(1px); }
+        .hidden { display: none !important; }
+        .instructions {
+            margin-top: 15px;
+            font-size: 14px;
+            color: #bdc3c7;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <div class="ui-overlay">
+            <div class="stat-box">SCORE: <span id="score-val">0</span></div>
+            <div class="stat-box">WICKET: <span id="wicket-val">0</span> / 1</div>
+            <div class="stat-box">HIGH: <span id="high-val">0</span></div>
+        </div>
+
+        <canvas id="gameCanvas" width="800" height="450"></canvas>
+
+        <!-- Start Screen -->
+        <div id="start-screen">
+            <h1>CRICKET REMAKE</h1>
+            <p>Google Doodle Cricket style arcade game built with Craft Anything</p>
+            <button class="btn" onclick="startGame()">PLAY CRICKET</button>
+            <div class="instructions">Press <strong>SPACEBAR</strong> or <strong>CLICK</strong> to swing the bat when the ball arrives!</div>
+        </div>
+
+        <!-- Game Over Screen -->
+        <div id="game-over-screen" class="hidden">
+            <h1>OUT!</h1>
+            <p id="final-score">Your Score: 0</p>
+            <button class="btn" onclick="startGame()">PLAY AGAIN</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        let score = 0;
+        let wickets = 0;
+        let highScore = localStorage.getItem('cricket_high') || 0;
+        document.getElementById('high-val').innerText = highScore;
+
+        let gameState = 'START'; // START, PLAYING, OVER
+
+        // Game entities
+        let batsman = { x: 220, y: 310, swinging: false, swingFrame: 0 };
+        let bowler = { x: 620, y: 240, frame: 0 };
+        let ball = { x: 620, y: 240, vx: 0, vy: 0, active: false, speed: 6, hit: false, color: '#e74c3c' };
+        let message = '';
+        let messageTimer = 0;
+        let particles = [];
+
+        function startGame() {
+            score = 0;
+            wickets = 0;
+            updateUI();
+            document.getElementById('start-screen').classList.add('hidden');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            gameState = 'PLAYING';
+            nextBall();
+        }
+
+        function updateUI() {
+            document.getElementById('score-val').innerText = score;
+            document.getElementById('wicket-val').innerText = wickets;
+            document.getElementById('high-val').innerText = highScore;
+        }
+
+        function nextBall() {
+            if (gameState !== 'PLAYING') return;
+            ball.x = bowler.x - 20;
+            ball.y = bowler.y + 10;
+            ball.active = true;
+            ball.hit = false;
+            
+            // Randomize speed based on score
+            let speedMultiplier = 1 + Math.min(score * 0.05, 1.5);
+            ball.vx = - (5 + Math.random() * 2) * speedMultiplier;
+            ball.vy = (2.2 + Math.random() * 1.5);
+        }
+
+        function swingBat() {
+            if (gameState !== 'PLAYING' || !ball.active || ball.hit) return;
+            batsman.swinging = true;
+            batsman.swingFrame = 15;
+
+            // Check collision with batsman
+            let dist = Math.hypot(ball.x - batsman.x, ball.y - batsman.y);
+            if (dist < 60) {
+                ball.hit = true;
+                let hitQuality = Math.abs(ball.x - batsman.x); // closer to 0 is perfect hit
+                
+                if (hitQuality < 15) {
+                    // SIX!
+                    score += 6;
+                    ball.vx = 14 + Math.random() * 4;
+                    ball.vy = -10 - Math.random() * 3;
+                    showPopUp("SIX RUNS!");
+                    createParticles(ball.x, ball.y, '#f1c40f', 25);
+                } else if (hitQuality < 30) {
+                    // FOUR!
+                    score += 4;
+                    ball.vx = 10 + Math.random() * 3;
+                    ball.vy = -6 - Math.random() * 2;
+                    showPopUp("FOUR!");
+                    createParticles(ball.x, ball.y, '#3498db', 15);
+                } else {
+                    // 1 or 2 runs
+                    let runs = Math.random() > 0.5 ? 2 : 1;
+                    score += runs;
+                    ball.vx = 6 + Math.random() * 2;
+                    ball.vy = -3 - Math.random();
+                    showPopUp(runs + " RUN" + (runs > 1 ? "S" : ""));
+                }
+                
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('cricket_high', highScore);
+                }
+                updateUI();
+
+                // Next ball after hit travels away
+                setTimeout(() => {
+                    if (gameState === 'PLAYING') nextBall();
+                }, 1200);
+            }
+        }
+
+        function showPopUp(text) {
+            message = text;
+            messageTimer = 60;
+        }
+
+        function createParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x, y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    radius: 3 + Math.random() * 4,
+                    color: color,
+                    alpha: 1
+                });
+            }
+        }
+
+        // Input listeners
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                swingBat();
+            }
+        });
+
+        canvas.addEventListener('click', () => {
+            swingBat();
+        });
+
+        // Main Game Loop
+        function loop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw Pitch / Field
+            // Grass background is canvas
+            // Pitch strip
+            ctx.fillStyle = '#d4ac0d';
+            ctx.beginPath();
+            ctx.moveTo(150, 420);
+            ctx.lineTo(680, 420);
+            ctx.lineTo(620, 260);
+            ctx.lineTo(210, 260);
+            ctx.closePath();
+            ctx.fill();
+
+            // Crease lines
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(230, 330);
+            ctx.lineTo(260, 290);
+            ctx.stroke();
+
+            // Draw Bowler (Snail / Character)
+            ctx.fillStyle = '#e67e22';
+            ctx.beginPath();
+            ctx.arc(bowler.x, bowler.y, 22, 0, Math.PI * 2);
+            ctx.fill();
+            // Bowler face/hat
+            ctx.fillStyle = '#d35400';
+            ctx.fillRect(bowler.x - 16, bowler.y - 30, 32, 10);
+
+            // Draw Batsman
+            ctx.fillStyle = '#2980b9';
+            ctx.beginPath();
+            ctx.arc(batsman.x, batsman.y - 10, 20, 0, Math.PI * 2);
+            ctx.fill();
+            // Helmet
+            ctx.fillStyle = '#16a085';
+            ctx.fillRect(batsman.x - 14, batsman.y - 30, 28, 12);
+
+            // Bat
+            ctx.save();
+            ctx.translate(batsman.x + 10, batsman.y);
+            if (batsman.swinging) {
+                ctx.rotate(-Math.PI / 3);
+                batsman.swingFrame--;
+                if (batsman.swingFrame <= 0) batsman.swinging = false;
+            } else {
+                ctx.rotate(Math.PI / 6);
+            }
+            ctx.fillStyle = '#d35400';
+            ctx.fillRect(0, -25, 12, 50);
+            ctx.restore();
+
+            // Ball Update & Draw
+            if (gameState === 'PLAYING' && ball.active) {
+                ball.x += ball.vx;
+                ball.y += ball.vy;
+
+                // Check wicket / missed ball
+                if (!ball.hit && ball.x < batsman.x - 25) {
+                    ball.active = false;
+                    wickets++;
+                    updateUI();
+                    if (wickets >= 1) {
+                        gameState = 'OVER';
+                        document.getElementById('final-score').innerText = 'Your Score: ' + score;
+                        document.getElementById('game-over-screen').classList.remove('hidden');
+                    } else {
+                        setTimeout(nextBall, 1000);
+                    }
+                }
+
+                ctx.fillStyle = ball.color;
+                ctx.beginPath();
+                ctx.arc(ball.x, ball.y, 8, 0, Math.PI * 2);
+                ctx.fill();
+            }
+
+            // Draw Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.alpha -= 0.03;
+                if (p.alpha <= 0) {
+                    particles.splice(i, 1);
+                    continue;
+                }
+                ctx.save();
+                ctx.globalAlpha = p.alpha;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+
+            // Draw Floating PopUp Message
+            if (messageTimer > 0) {
+                ctx.save();
+                ctx.font = 'bold 36px Arial';
+                ctx.fillStyle = '#f1c40f';
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 5;
+                ctx.textAlign = 'center';
+                ctx.strokeText(message, canvas.width / 2, 150);
+                ctx.fillText(message, canvas.width / 2, 150);
+                ctx.restore();
+                messageTimer--;
+            }
+
+            requestAnimationFrame(loop);
+        }
+
+        loop();
+    </script>
+</body>
+</html>
