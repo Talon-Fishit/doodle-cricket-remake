@@ -17,6 +17,7 @@ log = "0.4"
 package_name = "com.craftanything.doodlecricket"
 package_label = "Doodle Cricket"
 min_sdk_version = 24
+compile_sdk_version = 34
 target_sdk_version = 34
 assets = "assets"
 permissions = ["INTERNET"]
