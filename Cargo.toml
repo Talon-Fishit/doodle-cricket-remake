@@ -1,0 +1,23 @@
+[package]
+name = "doodle_cricket_android"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "doodle_cricket_android"
+crate-type = ["cdylib"]
+
+[dependencies]
+wry = "0.39"
+tao = "0.30"
+android_logger = "0.13"
+log = "0.4"
+
+[package.metadata.android]
+package_name = "com.craftanything.doodlecricket"
+package_label = "Doodle Cricket"
+min_sdk_version = 24
+target_sdk_version = 33
+assets = "assets"
+permissions = ["INTERNET"]
+apex = false
